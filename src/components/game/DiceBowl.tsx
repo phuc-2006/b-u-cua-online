@@ -14,7 +14,7 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenDragged, setHasBeenDragged] = useState(false);
   const constraintsRef = useRef(null);
-  
+
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
@@ -33,11 +33,11 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
 
   const handleDragEnd = () => {
     if (!canReveal || hasBeenDragged) return;
-    
+
     const currentX = x.get();
     const currentY = y.get();
     const distance = Math.sqrt(currentX * currentX + currentY * currentY);
-    
+
     // Reduced threshold to 30 for very easy reveal
     if (distance > 30) {
       // Keep the bowl at the dropped position - don't spring back
@@ -66,7 +66,7 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
   return (
     <div ref={constraintsRef} className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
       {/* Plate/Dish */}
-      <div 
+      <div
         className="absolute w-72 h-72 md:w-80 md:h-80 rounded-full shadow-2xl"
         style={{
           background: 'linear-gradient(145deg, #f5f5f5 0%, #e0e0e0 50%, #d0d0d0 100%)',
@@ -75,9 +75,9 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
       >
         {/* Inner plate circle */}
         <div className="absolute inset-8 rounded-full bg-gradient-to-b from-gray-100 to-gray-200" />
-        
+
         {/* Plate decorative border */}
-        <div 
+        <div
           className="absolute inset-2 rounded-full border-4 border-primary/20"
           style={{
             borderStyle: 'dashed',
@@ -90,12 +90,12 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
         {/* Top dice */}
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
-          animate={{ 
-            scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8, 
+          animate={{
+            scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8,
             opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.3 : 0.6),
             rotate: isShaking ? [0, 15, -15, 10, -10, 0] : 0,
           }}
-          transition={{ 
+          transition={{
             duration: isShaking ? 0.3 : 0.5,
             repeat: isShaking ? Infinity : 0,
             type: "spring",
@@ -105,17 +105,17 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
         >
           {results && (isRevealed || !showBowl) ? getAnimalEmoji(results[0]) : getAnimalEmoji(getDiceFace(0))}
         </motion.div>
-        
+
         {/* Bottom two dice */}
         <div className="flex gap-3">
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ 
-              scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8, 
+            animate={{
+              scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8,
               opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.3 : 0.6),
               rotate: isShaking ? [0, -15, 15, -10, 10, 0] : 0,
             }}
-            transition={{ 
+            transition={{
               duration: isShaking ? 0.3 : 0.5,
               delay: isShaking ? 0.05 : 0.1,
               repeat: isShaking ? Infinity : 0,
@@ -126,15 +126,15 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
           >
             {results && (isRevealed || !showBowl) ? getAnimalEmoji(results[1]) : getAnimalEmoji(getDiceFace(1))}
           </motion.div>
-          
+
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ 
-              scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8, 
+            animate={{
+              scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8,
               opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.3 : 0.6),
               rotate: isShaking ? [0, 10, -10, 15, -15, 0] : 0,
             }}
-            transition={{ 
+            transition={{
               duration: isShaking ? 0.3 : 0.5,
               delay: isShaking ? 0.1 : 0.2,
               repeat: isShaking ? Infinity : 0,
@@ -152,11 +152,11 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
       {showBowl && (
         <motion.div
           drag={canReveal && !hasBeenDragged}
-          dragConstraints={constraintsRef}
-          dragElastic={0.5}
+          dragConstraints={hasBeenDragged ? undefined : constraintsRef}
+          dragElastic={hasBeenDragged ? 0 : 0.5}
           onDragEnd={handleDragEnd}
-          style={{ 
-            x, 
+          style={{
+            x,
             y,
             background: 'radial-gradient(ellipse at 30% 20%, #B22222 0%, #8B0000 30%, #6B0000 60%, #4B0000 100%)',
             boxShadow: '0 20px 50px rgba(0,0,0,0.5), inset 0 -10px 30px rgba(0,0,0,0.4), inset 0 5px 20px rgba(255,255,255,0.1)',
@@ -174,13 +174,13 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
           className={`absolute inset-0 z-20 w-72 h-72 md:w-80 md:h-80 m-auto rounded-full ${canReveal && !hasBeenDragged ? 'cursor-grab' : 'cursor-default'} active:cursor-grabbing`}
         >
           {/* Bowl dome effect */}
-          <div 
+          <div
             className="absolute inset-4 rounded-full"
             style={{
               background: 'radial-gradient(ellipse at 35% 25%, rgba(255,255,255,0.15) 0%, transparent 50%)',
             }}
           />
-          
+
           {/* Cloud pattern decoration */}
           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice">
             {/* Cloud 1 - top left */}
@@ -215,24 +215,24 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
             <path d="M 180 80 Q 200 60 220 80 T 260 80" stroke="rgba(255,215,0,0.25)" strokeWidth="2.5" fill="none" />
             <path d="M 200 200 Q 215 185 230 200" stroke="rgba(255,215,0,0.2)" strokeWidth="2" fill="none" />
           </svg>
-          
+
           {/* Bowl rim/edge */}
-          <div 
+          <div
             className="absolute inset-0 rounded-full border-8 border-primary/60"
             style={{
               boxShadow: 'inset 0 0 20px rgba(0,0,0,0.3)',
             }}
           />
-          
+
           {/* Bowl handle/knob at top */}
-          <div 
+          <div
             className="absolute -top-4 left-1/2 transform -translate-x-1/2 w-12 h-10 rounded-full"
             style={{
               background: 'linear-gradient(180deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.3)',
             }}
           />
-          
+
         </motion.div>
       )}
     </div>
