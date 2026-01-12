@@ -40,11 +40,13 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     
     // Reduced threshold to 30 for very easy reveal
     if (distance > 30) {
+      // Keep the bowl at the dropped position - don't spring back
       setIsRevealed(true);
       setHasBeenDragged(true);
       onBowlRevealed?.();
+      // Bowl stays at current position until new round starts (isShaking becomes true)
     } else {
-      // Spring back
+      // Spring back only if not dragged far enough
       animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
       animate(y, 0, { type: "spring", stiffness: 300, damping: 25 });
     }
