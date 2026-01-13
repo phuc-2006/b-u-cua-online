@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -340,12 +340,10 @@ const Room = () => {
             {/* Header */}
             <header className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                    <Link to="/rooms">
-                        <Button variant="ghost" size="sm">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Quay lại
-                        </Button>
-                    </Link>
+                    <Button variant="ghost" size="sm" onClick={handleLeaveRoom}>
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Sảnh chờ
+                    </Button>
                     <h1 className="text-2xl font-black text-foreground game-title">
                         🎲 Phòng Chờ
                     </h1>
