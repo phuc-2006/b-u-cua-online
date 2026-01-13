@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Trash2, Dice5, Wallet } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Trash2, Dice5, Wallet, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AnimalCard from "./AnimalCard";
 import DiceBowl from "./DiceBowl";
@@ -192,11 +192,19 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-border">
-        <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
-          🎲 Bầu Cua Tôm Cá
-        </h1>
+        <Link to="/" className="hover:opacity-80 transition-opacity">
+          <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
+            🎲 Bầu Cua Tôm Cá
+          </h1>
+        </Link>
 
         <div className="flex items-center gap-3">
+          <Link to="/rooms">
+            <Button variant="gameOutline" size="sm" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              <span className="hidden md:inline">Chơi Online</span>
+            </Button>
+          </Link>
           <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
             <Wallet className="w-4 h-4 md:w-5 md:h-5" />
             {formatMoney(balance)}
