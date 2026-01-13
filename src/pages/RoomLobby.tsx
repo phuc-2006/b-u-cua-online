@@ -103,9 +103,8 @@ const RoomLobby = () => {
 
                 const playerCount = count || 0;
 
-                // Delete room if no players
+                // Skip rooms with no players (they should be auto-deleted by trigger)
                 if (playerCount === 0) {
-                    await supabase.from("rooms").delete().eq("id", room.id);
                     return null;
                 }
 
@@ -116,7 +115,7 @@ const RoomLobby = () => {
                 };
             }));
 
-            // Filter out null (deleted) rooms
+            // Filter out null rooms (rooms with no players)
             setRooms(roomsWithDetails.filter(r => r !== null) as RoomWithCount[]);
         }
     };

@@ -299,47 +299,23 @@ const Room = () => {
         if (!roomId || !user) return;
 
         try {
-            // Remove player from room
-            await supabase
+            // Remove player from room - the database trigger will handle:
+            // 1. Deleting the room if no players remain
+            // 2. Transferring host to another player if host leaves
+            const { error } = await supabase
                 .from("room_players")
                 .delete()
                 .eq("room_id", roomId)
                 .eq("user_id", user.id);
 
-            // Always check remaining players after leaving
-            const { data: remainingPlayers } = await supabase
-                .from("room_players")
-                .select("user_id")
-                .eq("room_id", roomId);
+            if (error) throw error;
 
-            if (!remainingPlayers || remainingPlayers.length === 0) {
-                // No players left, delete the room
-                await supabase
-                    .from("rooms")
-                    .delete()
-                    .eq("id", roomId);
-
-                toast({
-                    title: "Phòng đã đóng",
-                    description: "Không còn ai trong phòng, phòng đã được xóa.",
-                });
-            } else if (isHost) {
-                // Host is leaving but there are still players, transfer host
-                await supabase
-                    .from("rooms")
-                    .update({ host_id: remainingPlayers[0].user_id })
-                    .eq("id", roomId);
-
-                toast({
-                    title: "Rời phòng",
-                    description: "Bạn đã rời khỏi phòng. Quyền chủ phòng đã được chuyển giao.",
-                });
-            } else {
-                toast({
-                    title: "Rời phòng",
-                    description: "Bạn đã rời khỏi phòng.",
-                });
-            }
+            toast({
+                title: "Rời phòng",
+                description: isHost 
+                    ? "Bạn đã rời khỏi phòng. Quyền chủ phòng đã được chuyển giao."
+                    : "Bạn đã rời khỏi phòng.",
+            });
 
             navigate("/rooms");
         } catch (error: any) {
