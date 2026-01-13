@@ -9,9 +9,10 @@ interface DiceBowlProps {
   pendingResults?: AnimalType[] | null;
   onBowlRevealed?: () => void;
   canReveal: boolean;
+  autoReveal?: boolean; // Auto open bowl for online mode
 }
 
-const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlRevealed, canReveal }: DiceBowlProps) => {
+const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlRevealed, canReveal, autoReveal = false }: DiceBowlProps) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenDragged, setHasBeenDragged] = useState(false);
   const constraintsRef = useRef(null);
@@ -85,6 +86,23 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
       y.set(0);
     }
   }, [isShaking, x, y]);
+
+  // Auto-reveal for online mode
+  useEffect(() => {
+    if (autoReveal && canReveal && !isRevealed && !hasBeenDragged) {
+      // Auto animate bowl sliding to the side
+      const timer = setTimeout(() => {
+        animate(x, 150, { type: "spring", stiffness: 200, damping: 20 });
+        animate(y, -50, { type: "spring", stiffness: 200, damping: 20 });
+        setIsRevealed(true);
+        setHasBeenDragged(true);
+        if (onBowlRevealed) {
+          onBowlRevealed();
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoReveal, canReveal, isRevealed, hasBeenDragged, onBowlRevealed, x, y]);
 
   // Bowl is always visible - covers the plate at all times
   const showBowl = true;

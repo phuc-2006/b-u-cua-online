@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,8 @@ import {
     Dice5,
     Users,
     Crown,
-    RotateCcw
+    RotateCcw,
+    Check
 } from "lucide-react";
 import { ANIMALS, BET_AMOUNTS, AnimalType, formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
@@ -24,6 +25,7 @@ interface Player {
     username: string;
     isHost: boolean;
     odlUserId: string;
+    isReady?: boolean;
 }
 
 interface GameSession {
@@ -44,6 +46,10 @@ const OnlineGame = () => {
     const [players, setPlayers] = useState<Player[]>([]);
     const [session, setSession] = useState<GameSession | null>(null);
 
+    // Ready system
+    const [isReady, setIsReady] = useState(false);
+    const [readyPlayers, setReadyPlayers] = useState<Set<string>>(new Set());
+
     // Game state
     const [selectedBetAmount, setSelectedBetAmount] = useState(BET_AMOUNTS[0]);
     const [bets, setBets] = useState<Record<AnimalType, number>>({
@@ -51,6 +57,7 @@ const OnlineGame = () => {
     });
     const [isShaking, setIsShaking] = useState(false);
     const [canReveal, setCanReveal] = useState(false);
+    const [autoRevealed, setAutoRevealed] = useState(false);
     const [winCounts, setWinCounts] = useState<Record<AnimalType, number>>({
         nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0
     });
@@ -58,8 +65,14 @@ const OnlineGame = () => {
 
     const navigate = useNavigate();
     const { toast } = useToast();
+    const hasRevealedRef = useRef(false);
 
     const totalBet = Object.values(bets).reduce((sum, bet) => sum + bet, 0);
+
+    // Count non-host players
+    const nonHostPlayers = players.filter(p => !p.isHost);
+    const allPlayersReady = nonHostPlayers.length === 0 ||
+        nonHostPlayers.every(p => readyPlayers.has(p.odlUserId));
 
     // Fetch initial data
     useEffect(() => {
@@ -128,11 +141,6 @@ const OnlineGame = () => {
 
             if (sessionData) {
                 setSession(sessionData as GameSession);
-
-                // If session is revealed, show results
-                if (sessionData.status === 'revealed' && sessionData.dice_results) {
-                    handleDiceRevealed(sessionData.dice_results as AnimalType[]);
-                }
             }
 
             setLoading(false);
@@ -171,40 +179,62 @@ const OnlineGame = () => {
                 id: p.id,
                 username: profilesMap.get(p.user_id) || "Người chơi ẩn danh",
                 isHost: p.user_id === roomData?.host_id,
-                odlUserId: p.user_id
+                odlUserId: p.user_id,
+                isReady: readyPlayers.has(p.user_id)
             }));
             setPlayers(formattedPlayers);
         }
     };
 
-    // Realtime subscriptions
+    // Realtime subscriptions - subscribe to room_id for new sessions
     useEffect(() => {
-        if (!roomId || !session?.id) return;
+        if (!roomId) return;
 
         const channel = supabase
             .channel(`online-game-${roomId}`)
+            // Listen for ALL session changes in this room (INSERT for new rounds, UPDATE for status)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'game_sessions',
-                    filter: `id=eq.${session.id}`
+                    filter: `room_id=eq.${roomId}`
                 },
                 (payload) => {
-                    const newSession = payload.new as GameSession;
-                    setSession(newSession);
-
-                    if (newSession.status === 'rolling') {
-                        setIsShaking(true);
-                        setCanReveal(false);
-                    } else if (newSession.status === 'revealed' && newSession.dice_results) {
+                    if (payload.eventType === 'INSERT') {
+                        // New round created
+                        const newSession = payload.new as GameSession;
+                        setSession(newSession);
+                        // Reset local state for new round
+                        setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+                        setWinCounts({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+                        setLastWinnings(null);
                         setIsShaking(false);
-                        setCanReveal(true);
-                        // Auto reveal after short delay
-                        setTimeout(() => {
-                            handleDiceRevealed(newSession.dice_results as AnimalType[]);
-                        }, 500);
+                        setCanReveal(false);
+                        setAutoRevealed(false);
+                        setIsReady(false);
+                        setReadyPlayers(new Set());
+                        hasRevealedRef.current = false;
+                        toast({
+                            title: "Vòng mới!",
+                            description: "Hãy đặt cược vào con vật bạn chọn.",
+                        });
+                    } else if (payload.eventType === 'UPDATE') {
+                        const newSession = payload.new as GameSession;
+                        setSession(newSession);
+
+                        if (newSession.status === 'rolling') {
+                            setIsShaking(true);
+                            setCanReveal(false);
+                            setAutoRevealed(false);
+                            hasRevealedRef.current = false;
+                        } else if (newSession.status === 'revealed' && newSession.dice_results) {
+                            setIsShaking(false);
+                            // Auto reveal - set canReveal and autoRevealed
+                            setCanReveal(true);
+                            setAutoRevealed(true);
+                        }
                     }
                 }
             )
@@ -225,7 +255,19 @@ const OnlineGame = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [roomId, session?.id]);
+    }, [roomId]);
+
+    // Auto-reveal dice bowl when status is revealed
+    useEffect(() => {
+        if (autoRevealed && session?.status === 'revealed' && session.dice_results && !hasRevealedRef.current) {
+            hasRevealedRef.current = true;
+            // Small delay for smooth animation
+            const timer = setTimeout(() => {
+                handleDiceRevealed(session.dice_results as AnimalType[]);
+            }, 800);
+            return () => clearTimeout(timer);
+        }
+    }, [autoRevealed, session?.status, session?.dice_results]);
 
     // Handle dice revealed
     const handleDiceRevealed = (diceResults: AnimalType[]) => {
@@ -314,9 +356,74 @@ const OnlineGame = () => {
         setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
     };
 
+    // Player ready toggle
+    const handleToggleReady = () => {
+        if (isHost || session?.status !== 'betting') return;
+
+        const newIsReady = !isReady;
+        setIsReady(newIsReady);
+
+        // Update ready players set
+        const newReadyPlayers = new Set(readyPlayers);
+        if (newIsReady) {
+            newReadyPlayers.add(user.id);
+        } else {
+            newReadyPlayers.delete(user.id);
+        }
+        setReadyPlayers(newReadyPlayers);
+
+        // Broadcast ready status via realtime (using presence or custom)
+        // For simplicity, we'll use a channel broadcast
+        supabase.channel(`ready-${roomId}`).send({
+            type: 'broadcast',
+            event: 'ready_status',
+            payload: { userId: user.id, isReady: newIsReady }
+        });
+
+        toast({
+            title: newIsReady ? "✅ Sẵn sàng!" : "⏸️ Hủy sẵn sàng",
+            description: newIsReady ? "Bạn đã sẵn sàng để lắc." : "Bạn đã hủy trạng thái sẵn sàng.",
+        });
+    };
+
+    // Listen for ready status broadcasts
+    useEffect(() => {
+        if (!roomId) return;
+
+        const channel = supabase
+            .channel(`ready-${roomId}`)
+            .on('broadcast', { event: 'ready_status' }, (payload) => {
+                const { userId, isReady: playerReady } = payload.payload;
+                setReadyPlayers(prev => {
+                    const newSet = new Set(prev);
+                    if (playerReady) {
+                        newSet.add(userId);
+                    } else {
+                        newSet.delete(userId);
+                    }
+                    return newSet;
+                });
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [roomId]);
+
     // Host shake dice
     const handleShake = async () => {
         if (!isHost || !session) return;
+
+        // Check if all players are ready (if there are other players)
+        if (nonHostPlayers.length > 0 && !allPlayersReady) {
+            toast({
+                title: "Chưa thể lắc!",
+                description: "Đợi tất cả người chơi sẵn sàng.",
+                variant: "destructive",
+            });
+            return;
+        }
 
         try {
             // Update session status to rolling
@@ -359,29 +466,22 @@ const OnlineGame = () => {
         if (!isHost || !roomId) return;
 
         try {
-            // Create new session
-            const { data: newSession, error } = await supabase
+            // Reset ready players
+            setReadyPlayers(new Set());
+            setIsReady(false);
+
+            // Create new session - other players will receive via realtime INSERT
+            const { error } = await supabase
                 .from("game_sessions")
                 .insert({
                     room_id: roomId,
                     status: 'betting'
-                })
-                .select()
-                .single();
+                });
 
             if (error) throw error;
 
-            setSession(newSession as GameSession);
-            setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
-            setWinCounts({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
-            setLastWinnings(null);
-            setIsShaking(false);
-            setCanReveal(false);
+            // Local state will be updated via realtime subscription
 
-            toast({
-                title: "Vòng mới!",
-                description: "Hãy đặt cược vào con vật bạn chọn.",
-            });
         } catch (error: any) {
             toast({
                 title: "Lỗi",
@@ -397,7 +497,8 @@ const OnlineGame = () => {
     };
 
     const handleBowlRevealed = () => {
-        if (session?.dice_results) {
+        if (session?.dice_results && !hasRevealedRef.current) {
+            hasRevealedRef.current = true;
             handleDiceRevealed(session.dice_results);
         }
     };
@@ -452,6 +553,13 @@ const OnlineGame = () => {
                     <span className="font-bold text-primary">{room?.code}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Ready status indicator */}
+                    {session?.status === 'betting' && nonHostPlayers.length > 0 && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${allPlayersReady ? 'bg-green-500/20 text-green-500' : 'bg-orange-500/20 text-orange-500'
+                            }`}>
+                            {readyPlayers.size}/{nonHostPlayers.length} sẵn sàng
+                        </span>
+                    )}
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${session?.status === 'betting' ? 'bg-green-500/20 text-green-500' :
                             session?.status === 'rolling' ? 'bg-yellow-500/20 text-yellow-500' :
                                 session?.status === 'revealed' ? 'bg-blue-500/20 text-blue-500' :
@@ -471,7 +579,7 @@ const OnlineGame = () => {
                 </div>
             </div>
 
-            {/* Dice Bowl */}
+            {/* Dice Bowl - auto reveal in online mode */}
             <div className="flex justify-center py-4 md:py-6">
                 <DiceBowl
                     isShaking={isShaking}
@@ -480,6 +588,7 @@ const OnlineGame = () => {
                     pendingResults={session?.status === 'revealed' ? session.dice_results : null}
                     onBowlRevealed={handleBowlRevealed}
                     canReveal={canReveal}
+                    autoReveal={autoRevealed}
                 />
             </div>
 
@@ -530,15 +639,33 @@ const OnlineGame = () => {
                             >
                                 Xóa Cược
                             </Button>
+
+                            {/* Non-host: Ready button */}
+                            {!isHost && (
+                                <Button
+                                    variant={isReady ? "game" : "gameOutline"}
+                                    size="lg"
+                                    onClick={handleToggleReady}
+                                    className="flex-1"
+                                >
+                                    <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
+                                    {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
+                                </Button>
+                            )}
+
+                            {/* Host: Shake button */}
                             {isHost && (
                                 <Button
                                     variant="gameGold"
                                     size="lg"
                                     onClick={handleShake}
+                                    disabled={nonHostPlayers.length > 0 && !allPlayersReady}
                                     className="flex-1"
                                 >
                                     <Dice5 className="w-5 h-5 mr-2" />
-                                    Lắc!
+                                    {nonHostPlayers.length > 0 && !allPlayersReady
+                                        ? `Chờ sẵn sàng (${readyPlayers.size}/${nonHostPlayers.length})`
+                                        : "Lắc!"}
                                 </Button>
                             )}
                         </>
