@@ -289,16 +289,33 @@ const OnlineGame = () => {
                     }
                 }
             )
+            // Listen for INSERT with filter (works correctly)
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'public',
                     table: 'room_players',
                     filter: `room_id=eq.${roomId}`
                 },
                 () => {
                     fetchPlayers();
+                }
+            )
+            // Listen for DELETE WITHOUT filter (Supabase can't filter DELETE by room_id since row is gone)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'room_players'
+                },
+                (payload) => {
+                    // Check if DELETE is for this room
+                    const oldRecord = payload.old as { room_id?: string };
+                    if (oldRecord?.room_id === roomId) {
+                        fetchPlayers();
+                    }
                 }
             )
             .subscribe();
