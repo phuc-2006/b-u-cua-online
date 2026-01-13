@@ -161,10 +161,42 @@ const Room = () => {
                     filter: `id=eq.${roomId}`
                 },
                 (payload) => {
+                    const newRoomData = payload.new as any;
+
                     // Handle room status changes (e.g., game started)
-                    if (payload.new && (payload.new as any).status === 'playing') {
+                    if (newRoomData.status === 'playing') {
                         navigate(`/game/online/${roomId}`);
                     }
+
+                    // Handle host transfer
+                    if (newRoomData.host_id) {
+                        setRoom(prev => prev ? { ...prev, host_id: newRoomData.host_id } : null);
+                        setIsHost(newRoomData.host_id === user.id);
+
+                        if (newRoomData.host_id === user.id) {
+                            toast({
+                                title: "Bạn là chủ phòng mới!",
+                                description: "Quyền chủ phòng đã được chuyển cho bạn.",
+                            });
+                        }
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'rooms',
+                    filter: `id=eq.${roomId}`
+                },
+                () => {
+                    toast({
+                        title: "Phòng đã đóng",
+                        description: "Phòng đã bị xóa.",
+                        variant: "destructive",
+                    });
+                    navigate("/rooms");
                 }
             )
             .subscribe();
@@ -237,18 +269,45 @@ const Room = () => {
                 .eq("room_id", roomId)
                 .eq("user_id", user.id);
 
-            // If host leaves, delete the room
+            // If host leaves, transfer host to another player
             if (isHost) {
-                await supabase
-                    .from("rooms")
-                    .delete()
-                    .eq("id", roomId);
+                // Get remaining players
+                const { data: remainingPlayers } = await supabase
+                    .from("room_players")
+                    .select("user_id")
+                    .eq("room_id", roomId)
+                    .limit(1);
+
+                if (remainingPlayers && remainingPlayers.length > 0) {
+                    // Transfer host to first remaining player
+                    await supabase
+                        .from("rooms")
+                        .update({ host_id: remainingPlayers[0].user_id })
+                        .eq("id", roomId);
+
+                    toast({
+                        title: "Rời phòng",
+                        description: "Bạn đã rời khỏi phòng. Quyền chủ phòng đã được chuyển giao.",
+                    });
+                } else {
+                    // No players left, delete the room
+                    await supabase
+                        .from("rooms")
+                        .delete()
+                        .eq("id", roomId);
+
+                    toast({
+                        title: "Phòng đã đóng",
+                        description: "Bạn là người cuối cùng, phòng đã được xóa.",
+                    });
+                }
+            } else {
+                toast({
+                    title: "Rời phòng",
+                    description: "Bạn đã rời khỏi phòng.",
+                });
             }
 
-            toast({
-                title: "Rời phòng",
-                description: "Bạn đã rời khỏi phòng.",
-            });
             navigate("/rooms");
         } catch (error: any) {
             toast({

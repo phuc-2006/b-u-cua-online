@@ -90,10 +90,10 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
   // Auto-reveal for online mode
   useEffect(() => {
     if (autoReveal && canReveal && !isRevealed && !hasBeenDragged) {
-      // Auto animate bowl sliding to the side
+      // Auto animate bowl sliding to the left side to fully reveal dice
       const timer = setTimeout(() => {
-        animate(x, 150, { type: "spring", stiffness: 200, damping: 20 });
-        animate(y, -50, { type: "spring", stiffness: 200, damping: 20 });
+        animate(x, -280, { type: "spring", stiffness: 200, damping: 20 });
+        animate(y, 0, { type: "spring", stiffness: 200, damping: 20 });
         setIsRevealed(true);
         setHasBeenDragged(true);
         if (onBowlRevealed) {

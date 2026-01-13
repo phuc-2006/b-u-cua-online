@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
     Wallet,
@@ -12,11 +11,22 @@ import {
     Plus,
     Users,
     ArrowLeft,
-    Copy,
-    Play
+    Play,
+    Clock
 } from "lucide-react";
 import { formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
+
+interface RoomWithCount {
+    id: string;
+    code: string;
+    host_id: string;
+    status: 'waiting' | 'playing' | 'finished';
+    max_players: number;
+    created_at: string;
+    player_count: number;
+    host_username?: string;
+}
 
 const RoomLobby = () => {
     const [user, setUser] = useState<any>(null);
@@ -26,10 +36,11 @@ const RoomLobby = () => {
     const [creatingRoom, setCreatingRoom] = useState(false);
     const [joiningRoom, setJoiningRoom] = useState(false);
     const [roomCode, setRoomCode] = useState("");
-    const [waitingRooms, setWaitingRooms] = useState<any[]>([]);
+    const [rooms, setRooms] = useState<RoomWithCount[]>([]);
     const navigate = useNavigate();
     const { toast } = useToast();
 
+    // Fetch all data
     useEffect(() => {
         const fetchData = async () => {
             const { data: { session } } = await supabase.auth.getSession();
@@ -63,35 +74,75 @@ const RoomLobby = () => {
         };
 
         fetchData();
+    }, [navigate]);
 
-        // Fetch waiting rooms
-        const fetchRooms = async () => {
-            const { data } = await supabase
-                .from("rooms")
-                .select("*, profiles!rooms_host_id_fkey(username)")
-                .eq("status", "waiting")
-                .order("created_at", { ascending: false })
-                .limit(10);
+    // Fetch rooms with player counts
+    const fetchRooms = async () => {
+        // Get all non-finished rooms
+        const { data: roomsData } = await supabase
+            .from("rooms")
+            .select("*")
+            .in("status", ["waiting", "playing"])
+            .order("created_at", { ascending: false })
+            .limit(20);
 
-            if (data) {
-                // Get player counts for these rooms
-                const roomsWithCounts = await Promise.all(data.map(async (room) => {
-                    const { count } = await supabase
-                        .from("room_players")
-                        .select("*", { count: "exact", head: true })
-                        .eq("room_id", room.id);
-                    return { ...room, player_count: count || 0 };
-                }));
-                setWaitingRooms(roomsWithCounts);
-            }
-        };
+        if (roomsData) {
+            // Get player counts and host usernames for all rooms
+            const roomsWithDetails = await Promise.all(roomsData.map(async (room) => {
+                const { count } = await supabase
+                    .from("room_players")
+                    .select("*", { count: "exact", head: true })
+                    .eq("room_id", room.id);
 
+                // Get host username
+                const { data: hostProfile } = await supabase
+                    .from("profiles")
+                    .select("username")
+                    .eq("user_id", room.host_id)
+                    .maybeSingle();
+
+                const playerCount = count || 0;
+
+                // Delete room if no players
+                if (playerCount === 0) {
+                    await supabase.from("rooms").delete().eq("id", room.id);
+                    return null;
+                }
+
+                return {
+                    ...room,
+                    player_count: playerCount,
+                    host_username: hostProfile?.username || 'Ẩn danh'
+                };
+            }));
+
+            // Filter out null (deleted) rooms
+            setRooms(roomsWithDetails.filter(r => r !== null) as RoomWithCount[]);
+        }
+    };
+
+    useEffect(() => {
         fetchRooms();
 
-        // Refresh interval
-        const interval = setInterval(fetchRooms, 10000);
-        return () => clearInterval(interval);
-    }, [navigate]);
+        // Realtime subscription for rooms and room_players
+        const channel = supabase
+            .channel('lobby-rooms')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'rooms' },
+                () => fetchRooms()
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'room_players' },
+                () => fetchRooms()
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -114,7 +165,6 @@ const RoomLobby = () => {
         try {
             const code = generateRoomCode();
 
-            // Create room
             const { data: roomData, error: roomError } = await supabase
                 .from("rooms")
                 .insert({
@@ -128,7 +178,6 @@ const RoomLobby = () => {
 
             if (roomError) throw roomError;
 
-            // Add host as first player
             const { error: playerError } = await supabase
                 .from("room_players")
                 .insert({
@@ -143,7 +192,6 @@ const RoomLobby = () => {
                 description: `Đang vào phòng ${code}...`,
             });
 
-            // Auto join
             navigate(`/room/${roomData.id}`);
 
         } catch (error: any) {
@@ -157,8 +205,10 @@ const RoomLobby = () => {
         }
     };
 
-    const handleJoinRoom = async () => {
-        if (!roomCode.trim()) {
+    const handleJoinRoom = async (targetRoomCode?: string) => {
+        const codeToJoin = targetRoomCode || roomCode.trim().toUpperCase();
+
+        if (!codeToJoin) {
             toast({
                 title: "Thiếu mã phòng",
                 description: "Vui lòng nhập mã phòng để tham gia.",
@@ -171,12 +221,12 @@ const RoomLobby = () => {
         setJoiningRoom(true);
 
         try {
-            // Find room by code
+            // Find room by code (both waiting and playing)
             const { data: roomData, error: roomError } = await supabase
                 .from("rooms")
                 .select("*")
-                .eq("code", roomCode.toUpperCase())
-                .eq("status", "waiting")
+                .eq("code", codeToJoin)
+                .in("status", ["waiting", "playing"])
                 .maybeSingle();
 
             if (roomError) throw roomError;
@@ -184,7 +234,7 @@ const RoomLobby = () => {
             if (!roomData) {
                 toast({
                     title: "Không tìm thấy phòng",
-                    description: "Mã phòng không tồn tại hoặc phòng đã bắt đầu.",
+                    description: "Mã phòng không tồn tại hoặc phòng đã kết thúc.",
                     variant: "destructive",
                 });
                 setJoiningRoom(false);
@@ -192,12 +242,10 @@ const RoomLobby = () => {
             }
 
             // Check if room is full
-            const { count, error: countError } = await supabase
+            const { count } = await supabase
                 .from("room_players")
                 .select("*", { count: "exact", head: true })
                 .eq("room_id", roomData.id);
-
-            if (countError) throw countError;
 
             if (count && count >= roomData.max_players) {
                 toast({
@@ -218,7 +266,6 @@ const RoomLobby = () => {
                 .maybeSingle();
 
             if (!existingPlayer) {
-                // Join the room
                 const { error: joinError } = await supabase
                     .from("room_players")
                     .insert({
@@ -231,10 +278,14 @@ const RoomLobby = () => {
 
             toast({
                 title: "Tham gia thành công!",
-                description: `Đang vào phòng ${roomCode.toUpperCase()}...`,
+                description: roomData.status === 'playing'
+                    ? "Phòng đang chơi, bạn sẽ chơi ở vòng tiếp theo."
+                    : `Đang vào phòng ${codeToJoin}...`,
             });
 
+            // Navigate to room (Room.tsx will handle redirect to game if playing)
             navigate(`/room/${roomData.id}`);
+
         } catch (error: any) {
             toast({
                 title: "Lỗi tham gia phòng",
@@ -246,16 +297,6 @@ const RoomLobby = () => {
         }
     };
 
-    const copyRoomCode = () => {
-        if (createdRoomCode) {
-            navigator.clipboard.writeText(createdRoomCode);
-            toast({
-                title: "Đã sao chép!",
-                description: "Mã phòng đã được sao chép vào clipboard.",
-            });
-        }
-    };
-
     if (loading) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
@@ -263,6 +304,9 @@ const RoomLobby = () => {
             </div>
         );
     }
+
+    const waitingRooms = rooms.filter(r => r.status === 'waiting');
+    const playingRooms = rooms.filter(r => r.status === 'playing');
 
     return (
         <div className="min-h-screen bg-background">
@@ -375,7 +419,7 @@ const RoomLobby = () => {
                                 variant="gameOutline"
                                 size="lg"
                                 className="w-full"
-                                onClick={handleJoinRoom}
+                                onClick={() => handleJoinRoom()}
                                 disabled={joiningRoom || !roomCode.trim()}
                             >
                                 {joiningRoom ? "Đang vào..." : "Vào Ngay"}
@@ -384,58 +428,99 @@ const RoomLobby = () => {
                     </motion.div>
                 </div>
 
-                {/* Available Rooms List */}
+                {/* Waiting Rooms */}
                 {waitingRooms.length > 0 && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="mt-12"
+                        className="mt-10"
                     >
-                        <h2 className="text-2xl font-bold text-foreground mb-4">Phòng Đang Chờ ({waitingRooms.length})</h2>
+                        <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                            <Clock className="w-5 h-5 text-yellow-500" />
+                            Phòng Đang Chờ ({waitingRooms.length})
+                        </h2>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {waitingRooms.map((room) => (
-                                <div key={room.id} className="bg-card p-4 rounded-xl border border-border shadow-md hover:border-primary transition-colors flex flex-col justify-between">
-                                    <div>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="font-bold text-lg text-primary">{room.code}</span>
-                                            <span className="text-xs bg-muted px-2 py-1 rounded-full text-muted-foreground">
-                                                {room.player_count}/{room.max_players} người
-                                            </span>
-                                        </div>
-                                        <p className="text-sm text-foreground/80 mb-4">
-                                            Host: {room.profiles?.username || 'Ẩn danh'}
-                                        </p>
+                                <div key={room.id} className="bg-card p-4 rounded-xl border-2 border-yellow-500/30 shadow-md hover:border-yellow-500 transition-colors">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="font-bold text-lg text-primary">{room.code}</span>
+                                        <span className="text-xs bg-yellow-500/20 text-yellow-600 px-2 py-1 rounded-full font-medium">
+                                            Đang chờ
+                                        </span>
                                     </div>
+                                    <p className="text-sm text-muted-foreground mb-1">
+                                        Host: {room.host_username}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground mb-3">
+                                        <Users className="w-4 h-4 inline mr-1" />
+                                        {room.player_count}/{room.max_players} người chơi
+                                    </p>
                                     <Button
                                         variant="gameGold"
                                         size="sm"
                                         className="w-full"
-                                        onClick={() => {
-                                            setRoomCode(room.code);
-                                            // Optional: Auto trigger join?
-                                            // handleJoinRoom(); // Requires roomCode state to be set, might be async issue.
-                                            // Better to just populate code or call join with room data directly.
-                                            // Let's just set code for now, user clicks join. Or better, specific join function.
-                                            // Actually I'll implement direct join here.
-                                            const join = async () => {
-                                                setRoomCode(room.code);
-                                                // Trigger join properly? 
-                                                // React state update is async.
-                                                // Let's separate the join logic to accept code param.
-                                            };
-                                            join();
-                                        }}
-                                    // Workaround: Updating state does not update immediately.
-                                    // To fix, I will just set the input value and user clicks.
-                                    // OR make handleJoinRoom accept an argument.
+                                        onClick={() => handleJoinRoom(room.code)}
+                                        disabled={joiningRoom}
                                     >
-                                        Chọn
+                                        Tham gia
                                     </Button>
-                                    {/* Actually better to make handleJoinRoom accept param */}
                                 </div>
                             ))}
                         </div>
+                    </motion.div>
+                )}
+
+                {/* Playing Rooms */}
+                {playingRooms.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="mt-10"
+                    >
+                        <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                            <Play className="w-5 h-5 text-green-500" />
+                            Phòng Đang Chơi ({playingRooms.length})
+                        </h2>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {playingRooms.map((room) => (
+                                <div key={room.id} className="bg-card p-4 rounded-xl border-2 border-green-500/30 shadow-md hover:border-green-500 transition-colors">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="font-bold text-lg text-primary">{room.code}</span>
+                                        <span className="text-xs bg-green-500/20 text-green-600 px-2 py-1 rounded-full font-medium">
+                                            Đang chơi
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-1">
+                                        Host: {room.host_username}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground mb-3">
+                                        <Users className="w-4 h-4 inline mr-1" />
+                                        {room.player_count}/{room.max_players} người chơi
+                                    </p>
+                                    <Button
+                                        variant="gameOutline"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={() => handleJoinRoom(room.code)}
+                                        disabled={joiningRoom || room.player_count >= room.max_players}
+                                    >
+                                        {room.player_count >= room.max_players ? "Phòng đầy" : "Tham gia (chờ vòng mới)"}
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+
+                {rooms.length === 0 && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mt-10 text-center text-muted-foreground"
+                    >
+                        <p>Chưa có phòng nào. Hãy tạo phòng đầu tiên!</p>
                     </motion.div>
                 )}
 
@@ -443,7 +528,7 @@ const RoomLobby = () => {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
+                    transition={{ delay: 0.5 }}
                     className="mt-8 text-center"
                 >
                     <p className="text-muted-foreground text-sm">
