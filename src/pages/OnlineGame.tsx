@@ -58,6 +58,7 @@ const OnlineGame = () => {
     const [isShaking, setIsShaking] = useState(false);
     const [canReveal, setCanReveal] = useState(false);
     const [autoRevealed, setAutoRevealed] = useState(false);
+    const [bowlKey, setBowlKey] = useState(0); // Force remount DiceBowl on new round
     const [winCounts, setWinCounts] = useState<Record<AnimalType, number>>({
         nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0
     });
@@ -216,6 +217,7 @@ const OnlineGame = () => {
                         setIsReady(false);
                         setReadyPlayers(new Set());
                         hasRevealedRef.current = false;
+                        setBowlKey(prev => prev + 1); // Force DiceBowl remount
                         toast({
                             title: "Vòng mới!",
                             description: "Hãy đặt cược vào con vật bạn chọn.",
@@ -561,9 +563,9 @@ const OnlineGame = () => {
                         </span>
                     )}
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${session?.status === 'betting' ? 'bg-green-500/20 text-green-500' :
-                            session?.status === 'rolling' ? 'bg-yellow-500/20 text-yellow-500' :
-                                session?.status === 'revealed' ? 'bg-blue-500/20 text-blue-500' :
-                                    'bg-gray-500/20 text-gray-500'
+                        session?.status === 'rolling' ? 'bg-yellow-500/20 text-yellow-500' :
+                            session?.status === 'revealed' ? 'bg-blue-500/20 text-blue-500' :
+                                'bg-gray-500/20 text-gray-500'
                         }`}>
                         {session?.status === 'betting' ? '🎯 Đang cược' :
                             session?.status === 'rolling' ? '🎲 Đang lắc' :
@@ -582,6 +584,7 @@ const OnlineGame = () => {
             {/* Dice Bowl - auto reveal in online mode */}
             <div className="flex justify-center py-4 md:py-6">
                 <DiceBowl
+                    key={bowlKey}
                     isShaking={isShaking}
                     results={session?.status === 'revealed' ? session.dice_results : null}
                     previousResults={[]}

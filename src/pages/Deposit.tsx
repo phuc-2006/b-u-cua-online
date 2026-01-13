@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { formatMoney } from "@/lib/game";
-import { 
-  ArrowLeft, 
-  Wallet, 
-  Send, 
+import {
+  ArrowLeft,
+  Wallet,
+  Send,
   Loader2,
   Clock,
   CheckCircle,
@@ -27,6 +27,7 @@ interface DepositRequest {
 const Deposit = () => {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -37,7 +38,7 @@ const Deposit = () => {
   useEffect(() => {
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         navigate("/login");
         return;
@@ -55,6 +56,16 @@ const Deposit = () => {
       if (profileData) {
         setProfile(profileData);
       }
+
+      // Check admin status
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      setIsAdmin(!!roleData);
 
       // Fetch deposit requests
       const { data: requestsData } = await supabase
@@ -99,10 +110,27 @@ const Deposit = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Gửi yêu cầu thành công!",
-        description: "Yêu cầu nạp tiền của bạn đang chờ admin duyệt.",
-      });
+      // If admin, auto-approve and add money directly
+      if (isAdmin) {
+        // Add money to balance directly
+        const newBalance = (profile?.balance || 0) + amountNum;
+        await supabase
+          .from("profiles")
+          .update({ balance: newBalance })
+          .eq("user_id", user.id);
+
+        setProfile({ ...profile, balance: newBalance });
+
+        toast({
+          title: "Nạp tiền thành công!",
+          description: `Đã nạp ${formatMoney(amountNum)} vào tài khoản.`,
+        });
+      } else {
+        toast({
+          title: "Gửi yêu cầu thành công!",
+          description: "Yêu cầu nạp tiền của bạn đang chờ admin duyệt.",
+        });
+      }
 
       setAmount("");
 
@@ -183,7 +211,7 @@ const Deposit = () => {
             <Send className="w-6 h-6 text-primary" />
             Yêu cầu nạp tiền
           </h2>
-          
+
           <p className="text-muted-foreground text-sm mb-4">
             Gửi yêu cầu nạp tiền và chờ admin duyệt. Tiền sẽ được cộng vào tài khoản sau khi được duyệt.
           </p>
@@ -196,8 +224,8 @@ const Deposit = () => {
               onChange={(e) => setAmount(e.target.value)}
               className="flex-1 bg-background border-border text-foreground"
             />
-            <Button 
-              variant="gameGold" 
+            <Button
+              variant="gameGold"
               onClick={handleSubmitRequest}
               disabled={submitting}
             >
