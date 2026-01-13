@@ -60,17 +60,27 @@ const Room = () => {
         setRoom(roomData);
         setIsHost(roomData.host_id === userId);
 
-        // Fetch players with their profiles
-        // Use left join (profiles instead of profiles!inner) to ensure player is returned even if profile is missing
+        // Fetch players from room_players
         const { data: playersData, error: playersError } = await supabase
             .from("room_players")
-            .select("id, user_id, profiles(username)")
+            .select("id, user_id")
             .eq("room_id", roomId);
 
         if (!playersError && playersData) {
+            // Fetch profiles for all players
+            const userIds = playersData.map(p => p.user_id);
+            const { data: profilesData } = await supabase
+                .from("profiles")
+                .select("user_id, username")
+                .in("user_id", userIds);
+
+            const profilesMap = new Map(
+                (profilesData || []).map(p => [p.user_id, p.username])
+            );
+
             const formattedPlayers = playersData.map((p: any) => ({
                 id: p.id,
-                username: p.profiles?.username || "Người chơi ẩn danh",
+                username: profilesMap.get(p.user_id) || "Người chơi ẩn danh",
                 isHost: p.user_id === roomData.host_id,
                 odlUserId: p.user_id
             }));
