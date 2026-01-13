@@ -22,6 +22,10 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
   const [bets, setBets] = useState<Record<AnimalType, number>>({
     nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0
   });
+  // Store the bets that were made when dice were revealed (for win/loss display)
+  const [revealedBets, setRevealedBets] = useState<Record<AnimalType, number>>({
+    nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0
+  });
   const [isShaking, setIsShaking] = useState(false);
   const [results, setResults] = useState<AnimalType[] | null>(null);
   const [previousResults, setPreviousResults] = useState<AnimalType[]>([]);
@@ -31,6 +35,8 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
   });
   const [lastWinnings, setLastWinnings] = useState<number | null>(null);
   const [pendingResults, setPendingResults] = useState<AnimalType[] | null>(null);
+  // Store total bet for revealed round
+  const [revealedTotalBet, setRevealedTotalBet] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -38,7 +44,7 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
 
   const handleAnimalClick = (animalId: AnimalType) => {
     if (isShaking || canReveal) return;
-    
+
     if (balance < selectedBetAmount + totalBet - bets[animalId]) {
       toast({
         title: "Không đủ tiền!",
@@ -100,35 +106,50 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
   const handleBowlRevealed = () => {
     if (!pendingResults) return;
 
+    // Store the current bets for display purposes before resetting
+    setRevealedBets({ ...bets });
+    setRevealedTotalBet(totalBet);
+
     setResults(pendingResults);
     setPreviousResults(pendingResults);
     setCanReveal(false);
 
-    // Count occurrences
+    // Count occurrences of each animal in the dice results
     const counts: Record<AnimalType, number> = { nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 };
     pendingResults.forEach(r => counts[r]++);
     setWinCounts(counts);
 
     // Calculate winnings
+    // Rule: If you bet on an animal and it appears, you get your bet back + bet * count
+    // Example: Bet 10k on "bầu", if "bầu" appears 2 times, you get 10k + 10k*2 = 30k
     let winnings = 0;
     Object.entries(bets).forEach(([animal, betAmount]) => {
-      if (betAmount > 0 && counts[animal as AnimalType] > 0) {
-        winnings += betAmount * counts[animal as AnimalType] + betAmount;
+      const animalType = animal as AnimalType;
+      const count = counts[animalType];
+      if (betAmount > 0 && count > 0) {
+        // You get your bet back plus bet * number of times the animal appears
+        winnings += betAmount + (betAmount * count);
       }
     });
 
-    // Calculate new balance
+    // Calculate net change (winnings minus all bets placed)
     const netChange = winnings - totalBet;
     const newBalance = balance + netChange;
-    
+
     setLastWinnings(netChange);
     onBalanceChange(newBalance);
     setPendingResults(null);
 
-    // Reset bets after showing results - wait 3 seconds for bowl to stay visible
+    // Reset bets immediately when bowl is opened
+    setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+
+    // Clear the win display after 3 seconds
     setTimeout(() => {
-      setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+      setRevealedBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+      setRevealedTotalBet(0);
       setLastWinnings(null);
+      setWinCounts({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+      setResults(null);
     }, 3000);
 
     // Show result toast
@@ -158,13 +179,13 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
         <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
           🎲 Bầu Cua Tôm Cá
         </h1>
-        
+
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
             <Wallet className="w-4 h-4 md:w-5 md:h-5" />
             {formatMoney(balance)}
           </div>
-          
+
           <ProfileMenu
             username={username}
             balance={balance}
@@ -176,8 +197,8 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
 
       {/* Dice Bowl */}
       <div className="flex justify-center py-4 md:py-6">
-        <DiceBowl 
-          isShaking={isShaking} 
+        <DiceBowl
+          isShaking={isShaking}
           results={results}
           previousResults={previousResults}
           onBowlRevealed={handleBowlRevealed}
@@ -198,17 +219,24 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
       {/* Animal Grid */}
       <div className="flex-1 px-4 pb-4">
         <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
-          {ANIMALS.map((animal) => (
-            <AnimalCard
-              key={animal.id}
-              animal={animal}
-              isSelected={bets[animal.id] > 0}
-              betAmount={bets[animal.id]}
-              onClick={() => handleAnimalClick(animal.id)}
-              isWinner={results !== null && winCounts[animal.id] > 0 && bets[animal.id] > 0}
-              winCount={winCounts[animal.id]}
-            />
-          ))}
+          {ANIMALS.map((animal) => {
+            // Use current bets for display if no results yet, otherwise use revealed bets for win display
+            const currentBet = bets[animal.id];
+            const displayBet = results !== null ? revealedBets[animal.id] : currentBet;
+            const isWinner = results !== null && winCounts[animal.id] > 0 && revealedBets[animal.id] > 0;
+
+            return (
+              <AnimalCard
+                key={animal.id}
+                animal={animal}
+                isSelected={currentBet > 0 || displayBet > 0}
+                betAmount={displayBet}
+                onClick={() => handleAnimalClick(animal.id)}
+                isWinner={isWinner}
+                winCount={winCounts[animal.id]}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -236,9 +264,9 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
             {isShaking ? "Đang lắc..." : canReveal ? "Kéo bát!" : "Lắc!"}
           </Button>
         </div>
-        {totalBet > 0 && (
+        {(totalBet > 0 || revealedTotalBet > 0) && (
           <p className="text-center text-sm text-muted-foreground mt-2">
-            Tổng cược: <span className="font-bold text-foreground">{formatMoney(totalBet)}</span>
+            Tổng cược: <span className="font-bold text-foreground">{formatMoney(results !== null ? revealedTotalBet : totalBet)}</span>
           </p>
         )}
       </div>

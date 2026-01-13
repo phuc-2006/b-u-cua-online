@@ -38,8 +38,8 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     const currentY = y.get();
     const distance = Math.sqrt(currentX * currentX + currentY * currentY);
 
-    // Reduced threshold to 30 for very easy reveal
-    if (distance > 30) {
+    // Reduced threshold to 20 for very easy reveal
+    if (distance > 20) {
       // Keep the bowl at the dropped position - don't spring back
       setIsRevealed(true);
       setHasBeenDragged(true);
@@ -85,8 +85,8 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
         />
       </div>
 
-      {/* Dice Container - Triangle arrangement */}
-      <div className="absolute flex flex-col items-center justify-center z-10">
+      {/* Dice Container - Triangle arrangement - pointer-events-none so bowl can be dragged */}
+      <div className="absolute flex flex-col items-center justify-center z-10 pointer-events-none">
         {/* Top dice */}
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
