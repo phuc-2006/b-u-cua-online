@@ -15,22 +15,25 @@ const AnimalCard = ({ animal, isSelected, betAmount, onClick, isWinner, winCount
     <motion.button
       onClick={onClick}
       className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-4 transition-all duration-200 ${isSelected
-          ? 'border-primary bg-card shadow-lg ring-2 ring-primary/50'
-          : 'border-primary/60 bg-card hover:border-primary hover:shadow-md'
+        ? 'border-primary bg-card shadow-lg ring-2 ring-primary/50'
+        : 'border-primary/60 bg-card hover:border-primary hover:shadow-md'
         } ${isWinner ? 'ring-4 ring-green-500 animate-pulse-gold' : ''}`}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
       {animal.image ? (
-        <img
-          src={animal.image}
-          alt={animal.name}
-          className="w-20 h-20 md:w-24 md:h-24 object-contain mb-2 drop-shadow-md"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-          }}
-        />
+        <div className="bg-white rounded-lg p-2 mb-2 shadow-sm">
+          <img
+            src={animal.image}
+            alt={animal.name}
+            className="w-16 h-16 md:w-20 md:h-20 object-contain"
+            onError={(e) => {
+              // Hide the parent div if image fails
+              e.currentTarget.parentElement!.style.display = 'none';
+              e.currentTarget.parentElement!.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        </div>
       ) : null}
       <span className={`text-5xl md:text-6xl mb-2 ${animal.image ? 'hidden' : ''}`}>{animal.emoji}</span>
       <span className="text-lg font-bold text-card-foreground">{animal.name}</span>
