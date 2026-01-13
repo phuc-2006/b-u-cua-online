@@ -269,38 +269,34 @@ const Room = () => {
                 .eq("room_id", roomId)
                 .eq("user_id", user.id);
 
-            // If host leaves, transfer host to another player
-            if (isHost) {
-                // Get remaining players
-                const { data: remainingPlayers } = await supabase
-                    .from("room_players")
-                    .select("user_id")
-                    .eq("room_id", roomId)
-                    .limit(1);
+            // Always check remaining players after leaving
+            const { data: remainingPlayers } = await supabase
+                .from("room_players")
+                .select("user_id")
+                .eq("room_id", roomId);
 
-                if (remainingPlayers && remainingPlayers.length > 0) {
-                    // Transfer host to first remaining player
-                    await supabase
-                        .from("rooms")
-                        .update({ host_id: remainingPlayers[0].user_id })
-                        .eq("id", roomId);
+            if (!remainingPlayers || remainingPlayers.length === 0) {
+                // No players left, delete the room
+                await supabase
+                    .from("rooms")
+                    .delete()
+                    .eq("id", roomId);
 
-                    toast({
-                        title: "Rời phòng",
-                        description: "Bạn đã rời khỏi phòng. Quyền chủ phòng đã được chuyển giao.",
-                    });
-                } else {
-                    // No players left, delete the room
-                    await supabase
-                        .from("rooms")
-                        .delete()
-                        .eq("id", roomId);
+                toast({
+                    title: "Phòng đã đóng",
+                    description: "Không còn ai trong phòng, phòng đã được xóa.",
+                });
+            } else if (isHost) {
+                // Host is leaving but there are still players, transfer host
+                await supabase
+                    .from("rooms")
+                    .update({ host_id: remainingPlayers[0].user_id })
+                    .eq("id", roomId);
 
-                    toast({
-                        title: "Phòng đã đóng",
-                        description: "Bạn là người cuối cùng, phòng đã được xóa.",
-                    });
-                }
+                toast({
+                    title: "Rời phòng",
+                    description: "Bạn đã rời khỏi phòng. Quyền chủ phòng đã được chuyển giao.",
+                });
             } else {
                 toast({
                     title: "Rời phòng",

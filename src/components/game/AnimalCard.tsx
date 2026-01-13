@@ -22,11 +22,11 @@ const AnimalCard = ({ animal, isSelected, betAmount, onClick, isWinner, winCount
       whileTap={{ scale: 0.98 }}
     >
       {animal.image ? (
-        <div className="bg-white rounded-lg mb-2 shadow-sm overflow-hidden">
+        <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-lg mb-2 shadow-sm overflow-hidden flex items-center justify-center p-1">
           <img
             src={animal.image}
             alt={animal.name}
-            className="w-16 h-16 md:w-20 md:h-20 object-contain"
+            className="w-full h-full object-contain"
             onError={(e) => {
               // Hide the parent div if image fails
               e.currentTarget.parentElement!.style.display = 'none';
@@ -36,7 +36,7 @@ const AnimalCard = ({ animal, isSelected, betAmount, onClick, isWinner, winCount
         </div>
       ) : null}
       <span className={`text-5xl md:text-6xl mb-2 ${animal.image ? 'hidden' : ''}`}>{animal.emoji}</span>
-      <span className="text-lg font-bold text-card-foreground">{animal.name}</span>
+      <span className="text-base font-semibold text-card-foreground">{animal.name}</span>
 
       {betAmount > 0 && (
         <motion.div

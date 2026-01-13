@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lobster&display=swap');
 
 @layer base {
   :root {
@@ -111,9 +112,9 @@
   }
 
   .game-title {
-    font-weight: 900;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    font-family: 'Lobster', cursive;
+    font-weight: 400;
+    letter-spacing: 0.02em;
   }
 }
 
