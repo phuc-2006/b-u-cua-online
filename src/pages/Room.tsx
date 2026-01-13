@@ -133,23 +133,42 @@ const Room = () => {
         fetchData();
     }, [navigate, roomId]);
 
-    // Realtime subscription for players
+    // Realtime subscription for players and room updates
     useEffect(() => {
         if (!roomId || !user) return;
 
+        // Function to refetch all room data
+        const refetchData = () => {
+            fetchRoomData(user.id);
+        };
+
         const channel = supabase
-            .channel(`room-${roomId}`)
+            .channel(`room-realtime-${roomId}`)
+            // Listen for ALL changes to room_players in this room
             .on(
                 'postgres_changes',
                 {
-                    event: '*',
+                    event: 'INSERT',
                     schema: 'public',
                     table: 'room_players',
                     filter: `room_id=eq.${roomId}`
                 },
                 () => {
-                    // Refetch players when changes occur
-                    fetchRoomData(user.id);
+                    console.log('Player joined room');
+                    refetchData();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'room_players',
+                    filter: `room_id=eq.${roomId}`
+                },
+                () => {
+                    console.log('Player left room');
+                    refetchData();
                 }
             )
             .on(
@@ -162,16 +181,21 @@ const Room = () => {
                 },
                 (payload) => {
                     const newRoomData = payload.new as any;
+                    console.log('Room updated:', newRoomData);
 
                     // Handle room status changes (e.g., game started)
                     if (newRoomData.status === 'playing') {
                         navigate(`/baucua/online/${roomId}`);
+                        return;
                     }
 
-                    // Handle host transfer
+                    // Handle host transfer - refetch to update player list with correct isHost
                     if (newRoomData.host_id) {
                         setRoom(prev => prev ? { ...prev, host_id: newRoomData.host_id } : null);
                         setIsHost(newRoomData.host_id === user.id);
+
+                        // Refetch players to update isHost flags
+                        refetchData();
 
                         if (newRoomData.host_id === user.id) {
                             toast({
@@ -199,12 +223,14 @@ const Room = () => {
                     navigate("/rooms");
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('Subscription status:', status);
+            });
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [roomId, user, navigate]);
+    }, [roomId, user, navigate, toast]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
