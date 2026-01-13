@@ -518,10 +518,10 @@ const OnlineGame = () => {
             {/* Header */}
             <header className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                    <Link to={`/room/${roomId}`}>
+                    <Link to="/rooms">
                         <Button variant="ghost" size="sm">
                             <ArrowLeft className="w-4 h-4 mr-2" />
-                            Phòng chờ
+                            Sảnh chờ
                         </Button>
                     </Link>
                     <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
