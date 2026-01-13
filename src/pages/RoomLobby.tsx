@@ -144,6 +144,15 @@ const RoomLobby = () => {
         };
     }, []);
 
+    // Polling fallback - refresh room list every 3 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchRooms();
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, []);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate("/");
