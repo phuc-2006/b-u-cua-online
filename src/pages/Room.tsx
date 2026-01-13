@@ -57,6 +57,12 @@ const Room = () => {
             return;
         }
 
+        // If room is already playing, redirect to game
+        if (roomData.status === 'playing') {
+            navigate(`/game/online/${roomId}`);
+            return;
+        }
+
         setRoom(roomData);
         setIsHost(roomData.host_id === userId);
 
