@@ -26,6 +26,7 @@ interface Player {
     isHost: boolean;
     odlUserId: string;
     isReady?: boolean;
+    totalBet?: number;
 }
 
 interface GameSession {
@@ -196,7 +197,7 @@ const OnlineGame = () => {
 
         const { data: playersData } = await supabase
             .from("room_players")
-            .select("id, user_id, is_ready")
+            .select("id, user_id, is_ready, total_bet")
             .eq("room_id", roomId);
 
         // Abort if newer fetch started
@@ -237,7 +238,8 @@ const OnlineGame = () => {
                 username: profilesMap.get(p.user_id) || "Người chơi ẩn danh",
                 isHost: p.user_id === roomData?.host_id,
                 odlUserId: p.user_id,
-                isReady: p.is_ready || false
+                isReady: p.is_ready || false,
+                totalBet: p.total_bet || 0
             }));
             setPlayers(formattedPlayers);
         }
@@ -383,10 +385,10 @@ const OnlineGame = () => {
                         }
                         return newSet;
                     });
-                    // Also update local player object
+                    // Also update local player object with ready status and total bet
                     setPlayers(prevPlayers => prevPlayers.map(p =>
                         p.odlUserId === row.user_id
-                            ? { ...p, isReady: row.is_ready || false }
+                            ? { ...p, isReady: row.is_ready || false, totalBet: row.total_bet || 0 }
                             : p
                     ));
                 }
@@ -488,10 +490,20 @@ const OnlineGame = () => {
         const newBalance = profile.balance - selectedBetAmount;
         setProfile({ ...profile, balance: newBalance });
 
-        setBets(prev => ({
-            ...prev,
-            [animalId]: prev[animalId] + selectedBetAmount
-        }));
+        const newBets = {
+            ...bets,
+            [animalId]: bets[animalId] + selectedBetAmount
+        };
+        setBets(newBets);
+
+        // Sync total bet to database for display to other players
+        const newTotalBet = Object.values(newBets).reduce((sum, bet) => sum + bet, 0);
+        supabase
+            .from("room_players")
+            .update({ total_bet: newTotalBet })
+            .eq("room_id", roomId)
+            .eq("user_id", user.id)
+            .then();
     };
 
     // Clear bets
@@ -501,6 +513,16 @@ const OnlineGame = () => {
         // Refund
         setProfile({ ...profile, balance: profile.balance + totalBet });
         setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+
+        // Reset total bet in database
+        if (user && roomId) {
+            supabase
+                .from("room_players")
+                .update({ total_bet: 0 })
+                .eq("room_id", roomId)
+                .eq("user_id", user.id)
+                .then();
+        }
     };
 
     // Player ready toggle - saves to database for reliable sync
@@ -593,10 +615,10 @@ const OnlineGame = () => {
         if (!isHost || !roomId) return;
 
         try {
-            // Reset ready players in database
+            // Reset ready status and total bets in database
             await supabase
                 .from("room_players")
-                .update({ is_ready: false })
+                .update({ is_ready: false, total_bet: 0 })
                 .eq("room_id", roomId);
 
             // Reset local state
@@ -765,6 +787,11 @@ const OnlineGame = () => {
                                     {player.username}
                                     {isCurrentPlayer && ' (Bạn)'}
                                 </span>
+                                {session?.status === 'betting' && (player.totalBet || 0) > 0 && (
+                                    <span className="text-xs text-green-500 font-semibold">
+                                        {formatMoney(player.totalBet || 0)}
+                                    </span>
+                                )}
                                 {session?.status === 'betting' && !player.isHost && (
                                     <div className={`w-2 h-2 rounded-full ${playerIsReady ? 'bg-green-500' : 'bg-muted-foreground/30'
                                         }`} />
