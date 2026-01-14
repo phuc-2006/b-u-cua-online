@@ -188,7 +188,7 @@ const Room = () => {
 
         const interval = setInterval(() => {
             fetchRoomData(user.id);
-        }, 5000);
+        }, 3000);
 
         return () => clearInterval(interval);
     }, [roomId, user, loading, fetchRoomData]);
@@ -260,8 +260,10 @@ const Room = () => {
                     table: 'room_players',
                     filter: `room_id=eq.${roomId}`
                 },
-                () => {
-                    refetchData();
+                (payload) => {
+                    console.log('New player joined:', payload);
+                    // Force immediate refetch to ensure host sees the new player
+                    setTimeout(() => refetchData(), 100);
                 }
             )
             .on(
