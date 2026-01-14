@@ -243,7 +243,18 @@ const OnlineGame = () => {
         // Small helper: update players list immediately, then reconcile by refetch
         const removePlayerLocal = (userId?: string, rowId?: string) => {
             if (!userId && !rowId) return;
-            setPlayers(prev => prev.filter(p => (rowId ? p.id !== rowId : true) && (userId ? p.odlUserId !== userId : true)));
+            // Invalidate pending fetches to prevent race condition
+            fetchIdRef.current += 1;
+            // Use OR logic: remove if matches rowId OR userId (either is enough)
+            setPlayers(prev => {
+                const filtered = prev.filter(p => {
+                    const matchId = rowId && p.id === rowId;
+                    const matchUserId = userId && p.odlUserId === userId;
+                    return !matchId && !matchUserId;
+                });
+                console.log(`[removePlayerLocal] ${prev.length} -> ${filtered.length}`);
+                return filtered;
+            });
         };
 
         const addPlayerLocal = async (userId?: string, rowId?: string) => {
