@@ -615,8 +615,11 @@ const OnlineGame = () => {
     };
 
     // Player ready toggle - saves to database for reliable sync
+    // Works in both lobby (no session) and betting phase
     const handleToggleReady = async () => {
-        if (isHost || session?.status !== 'betting' || !user || !roomId) return;
+        if (isHost || !user || !roomId) return;
+        // Only allow in lobby or betting phase
+        if (session && session.status !== 'betting') return;
 
         const newIsReady = !isReady;
 
@@ -730,6 +733,55 @@ const OnlineGame = () => {
             toast({
                 title: "Lỗi",
                 description: error.message || "Không thể tạo vòng mới.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    // Start game (first session) - host only
+    const handleStartGame = async () => {
+        if (!isHost || !roomId) return;
+
+        // Check if all players are ready
+        if (nonHostPlayers.length > 0 && !allPlayersReady) {
+            toast({
+                title: "Chưa thể bắt đầu!",
+                description: "Đợi tất cả người chơi sẵn sàng.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            // Reset ready status for game start
+            await supabase
+                .from("room_players")
+                .update({ is_ready: false, total_bet: 0 })
+                .eq("room_id", roomId);
+
+            // Reset local state
+            setReadyPlayers(new Set());
+            setIsReady(false);
+
+            // Create first game session
+            const { error } = await supabase
+                .from("game_sessions")
+                .insert({
+                    room_id: roomId,
+                    status: 'betting'
+                });
+
+            if (error) throw error;
+
+            toast({
+                title: "🎲 Game bắt đầu!",
+                description: "Hãy đặt cược vào con vật bạn chọn.",
+            });
+
+        } catch (error: any) {
+            toast({
+                title: "Lỗi",
+                description: error.message || "Không thể bắt đầu game.",
                 variant: "destructive",
             });
         }
@@ -941,6 +993,47 @@ const OnlineGame = () => {
             {/* Action Buttons */}
             <div className="sticky bottom-0 bg-muted/95 backdrop-blur-sm p-4 border-t border-border">
                 <div className="flex justify-center gap-4 max-w-lg mx-auto">
+                    {/* Lobby mode - no session yet */}
+                    {!session && (
+                        <>
+                            {/* Non-host: Ready button */}
+                            {!isHost && (
+                                <Button
+                                    variant={isReady ? "game" : "gameOutline"}
+                                    size="lg"
+                                    onClick={handleToggleReady}
+                                    className="flex-1"
+                                >
+                                    <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
+                                    {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
+                                </Button>
+                            )}
+
+                            {/* Host: Start game button */}
+                            {isHost && (
+                                <Button
+                                    variant="gameGold"
+                                    size="lg"
+                                    onClick={handleStartGame}
+                                    disabled={nonHostPlayers.length > 0 && !allPlayersReady}
+                                    className="flex-1"
+                                >
+                                    <Dice5 className="w-5 h-5 mr-2" />
+                                    {nonHostPlayers.length > 0 && !allPlayersReady
+                                        ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
+                                        : "Bắt đầu Game"}
+                                </Button>
+                            )}
+
+                            {/* Waiting message for non-host when ready */}
+                            {!isHost && isReady && (
+                                <div className="text-center text-sm text-muted-foreground">
+                                    Chờ host bắt đầu game...
+                                </div>
+                            )}
+                        </>
+                    )}
+
                     {session?.status === 'betting' && (
                         <>
                             <Button
