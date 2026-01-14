@@ -178,14 +178,14 @@ const Room = () => {
         fetchData();
     }, [navigate, roomId, fetchRoomData]);
 
-    // Polling fallback - refetch every 2 seconds for reliable sync
+    // Polling fallback - refetch every 1 second for reliable sync
     useEffect(() => {
         if (!roomId || !user || loading) return;
 
         const interval = setInterval(() => {
             console.log('[Room] Polling refetch...');
             fetchRoomData(user.id);
-        }, 2000);
+        }, 1000);
 
         return () => clearInterval(interval);
     }, [roomId, user, loading, fetchRoomData]);
@@ -314,9 +314,13 @@ const Room = () => {
                     table: 'room_players'
                 },
                 (payload) => {
+                    console.log('[Room] Realtime DELETE received:', payload);
                     const oldRow = payload.old as any;
                     if (oldRow?.room_id !== roomId) return;
+                    console.log('[Room] Removing player from room:', oldRow?.user_id);
                     removePlayerLocal(oldRow?.user_id, oldRow?.id);
+                    // Also refetch to ensure consistency
+                    setTimeout(() => refetchData(), 200);
                 }
             )
             // Listen for game_sessions INSERT (backup for game start)
