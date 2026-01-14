@@ -14,7 +14,8 @@ import {
     Crown,
     LogOut,
     RefreshCw,
-    Check
+    Check,
+    Plus
 } from "lucide-react";
 import { formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
@@ -561,6 +562,14 @@ const Room = () => {
                         <Wallet className="w-5 h-5" />
                         {formatMoney(profile?.balance || 0)}
                     </div>
+                    <Button
+                        variant="gameGold"
+                        size="sm"
+                        onClick={() => navigate("/deposit")}
+                        className="rounded-full px-3"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </Button>
 
                     <ProfileMenu
                         username={profile?.username || "Người chơi"}

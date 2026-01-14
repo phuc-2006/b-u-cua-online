@@ -40,7 +40,7 @@ const RoomLobby = () => {
     const [rooms, setRooms] = useState<RoomWithCount[]>([]);
     const navigate = useNavigate();
     const { toast } = useToast();
-    
+
     // Request sequence guard to prevent race conditions
     const fetchIdRef = useRef(0);
 
@@ -83,7 +83,7 @@ const RoomLobby = () => {
     // Fetch rooms with player counts - with sequence guard
     const fetchRooms = useCallback(async () => {
         const currentFetchId = ++fetchIdRef.current;
-        
+
         // Get all non-finished rooms
         const { data: roomsData } = await supabase
             .from("rooms")
@@ -98,7 +98,7 @@ const RoomLobby = () => {
         if (roomsData && roomsData.length > 0) {
             // Batch fetch: get all player counts in one query
             const roomIds = roomsData.map(r => r.id);
-            
+
             // Get player counts for all rooms
             const { data: playerCounts } = await supabase
                 .from("room_players")
@@ -132,7 +132,7 @@ const RoomLobby = () => {
             const roomsWithDetails = roomsData
                 .map(room => {
                     const playerCount = countMap.get(room.id) || 0;
-                    
+
                     // Skip rooms with no players (they should be auto-deleted by trigger)
                     if (playerCount === 0) return null;
 
@@ -375,6 +375,14 @@ const RoomLobby = () => {
                         <Wallet className="w-5 h-5" />
                         {formatMoney(profile?.balance || 0)}
                     </div>
+                    <Button
+                        variant="gameGold"
+                        size="sm"
+                        onClick={() => navigate("/deposit")}
+                        className="rounded-full px-3"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </Button>
 
                     <ProfileMenu
                         username={profile?.username || "Người chơi"}
