@@ -72,6 +72,7 @@ const OnlineGame = () => {
     const hasLeftRef = useRef(false);
     const [isLeaving, setIsLeaving] = useState(false);
     const fetchIdRef = useRef(0);
+    const readyChannelRef = useRef<any>(null);
 
     const totalBet = Object.values(bets).reduce((sum, bet) => sum + bet, 0);
 
@@ -469,7 +470,7 @@ const OnlineGame = () => {
 
     // Player ready toggle
     const handleToggleReady = () => {
-        if (isHost || session?.status !== 'betting') return;
+        if (isHost || session?.status !== 'betting' || !user) return;
 
         const newIsReady = !isReady;
         setIsReady(newIsReady);
@@ -483,13 +484,15 @@ const OnlineGame = () => {
         }
         setReadyPlayers(newReadyPlayers);
 
-        // Broadcast ready status via realtime (using presence or custom)
-        // For simplicity, we'll use a channel broadcast
-        supabase.channel(`ready-${roomId}`).send({
-            type: 'broadcast',
-            event: 'ready_status',
-            payload: { userId: user.id, isReady: newIsReady }
-        });
+        // Broadcast ready status via the subscribed channel
+        console.log('[OnlineGame] Broadcasting ready status:', { userId: user.id, isReady: newIsReady });
+        if (readyChannelRef.current) {
+            readyChannelRef.current.send({
+                type: 'broadcast',
+                event: 'ready_status',
+                payload: { userId: user.id, isReady: newIsReady }
+            });
+        }
 
         toast({
             title: newIsReady ? "✅ Sẵn sàng!" : "⏸️ Hủy sẵn sàng",
@@ -504,6 +507,7 @@ const OnlineGame = () => {
         const channel = supabase
             .channel(`ready-${roomId}`)
             .on('broadcast', { event: 'ready_status' }, (payload) => {
+                console.log('[OnlineGame] Received ready broadcast:', payload);
                 const { userId, isReady: playerReady } = payload.payload;
                 setReadyPlayers(prev => {
                     const newSet = new Set(prev);
@@ -515,9 +519,15 @@ const OnlineGame = () => {
                     return newSet;
                 });
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log('[OnlineGame] Ready channel subscription status:', status);
+            });
+
+        // Store channel in ref for sending
+        readyChannelRef.current = channel;
 
         return () => {
+            readyChannelRef.current = null;
             supabase.removeChannel(channel);
         };
     }, [roomId]);
