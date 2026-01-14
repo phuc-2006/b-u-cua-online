@@ -101,6 +101,7 @@ const Room = () => {
 
         // If room is already playing, redirect to game
         if (roomData.status === 'playing') {
+            console.log('[Room] Room status is playing, redirecting to game...');
             isNavigatingToGameRef.current = true;
             navigate(`/baucua/online/${roomId}`);
             return;
@@ -349,9 +350,11 @@ const Room = () => {
                 },
                 (payload) => {
                     const newRoomData = payload.new as any;
+                    console.log('[Room] Room UPDATE received:', newRoomData);
 
                     // Handle room status changes (e.g., game started)
                     if (newRoomData.status === 'playing') {
+                        console.log('[Room] Game started! Redirecting...');
                         isNavigatingToGameRef.current = true;
                         navigate(`/baucua/online/${roomId}`);
                         return;
