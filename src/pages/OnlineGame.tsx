@@ -27,6 +27,8 @@ interface Player {
     odlUserId: string;
     isReady?: boolean;
     totalBet?: number;
+    balance?: number;
+    lastWinnings?: number | null;
 }
 
 interface GameSession {
@@ -217,14 +219,14 @@ const OnlineGame = () => {
             const userIds = playersData.map(p => p.user_id);
             const { data: profilesData } = await supabase
                 .from("profiles")
-                .select("user_id, username")
+                .select("user_id, username, balance")
                 .in("user_id", userIds);
 
             // Abort if newer fetch started
             if (currentFetchId !== fetchIdRef.current) return;
 
             const profilesMap = new Map(
-                (profilesData || []).map(p => [p.user_id, p.username])
+                (profilesData || []).map(p => [p.user_id, { username: p.username, balance: p.balance }])
             );
 
             const { data: roomData } = await supabase
@@ -245,14 +247,21 @@ const OnlineGame = () => {
             console.log('[fetchPlayers] Setting readyPlayers:', [...newReadyPlayers]);
             setReadyPlayers(newReadyPlayers);
 
-            const formattedPlayers = playersData.map((p: any) => ({
-                id: p.id,
-                username: profilesMap.get(p.user_id) || "Người chơi ẩn danh",
-                isHost: p.user_id === roomData?.host_id,
-                odlUserId: p.user_id,
-                isReady: p.is_ready || false,
-                totalBet: p.total_bet || 0
-            }));
+            const formattedPlayers = playersData.map((p: any) => {
+                const profileInfo = profilesMap.get(p.user_id);
+                // Preserve lastWinnings from existing player state
+                const existingPlayer = players.find(ep => ep.odlUserId === p.user_id);
+                return {
+                    id: p.id,
+                    username: profileInfo?.username || "Người chơi ẩn danh",
+                    isHost: p.user_id === roomData?.host_id,
+                    odlUserId: p.user_id,
+                    isReady: p.is_ready || false,
+                    totalBet: p.total_bet || 0,
+                    balance: profileInfo?.balance || 0,
+                    lastWinnings: existingPlayer?.lastWinnings ?? null
+                };
+            });
             setPlayers(formattedPlayers);
         }
     };
@@ -526,6 +535,15 @@ const OnlineGame = () => {
 
         const netChange = winnings - totalBet;
         setLastWinnings(netChange);
+
+        // Update current player's lastWinnings in players array
+        if (user?.id) {
+            setPlayers(prev => prev.map(p =>
+                p.odlUserId === user.id
+                    ? { ...p, lastWinnings: netChange }
+                    : p
+            ));
+        }
 
         // Update balance
         if (profile && (winnings > 0 || totalBet > 0)) {
@@ -928,9 +946,23 @@ const OnlineGame = () => {
                                     {player.username}
                                     {isCurrentPlayer && ' (Bạn)'}
                                 </span>
+                                {/* Show balance */}
+                                <span className="text-xs text-muted-foreground">
+                                    {formatMoney(player.balance || 0)}
+                                </span>
+                                {/* Show total bet during betting */}
                                 {session?.status === 'betting' && (player.totalBet || 0) > 0 && (
-                                    <span className="text-xs text-green-500 font-semibold">
-                                        {formatMoney(player.totalBet || 0)}
+                                    <span className="text-xs text-orange-500 font-semibold">
+                                        -{formatMoney(player.totalBet || 0)}
+                                    </span>
+                                )}
+                                {/* Show win/loss after revealed */}
+                                {session?.status === 'revealed' && player.lastWinnings !== null && player.lastWinnings !== undefined && (
+                                    <span className={`text-xs font-bold ${player.lastWinnings > 0 ? 'text-green-500' : player.lastWinnings < 0 ? 'text-red-500' : 'text-muted-foreground'
+                                        }`}>
+                                        {player.lastWinnings > 0 ? `+${formatMoney(player.lastWinnings)}` :
+                                            player.lastWinnings < 0 ? `-${formatMoney(Math.abs(player.lastWinnings))}` :
+                                                'Hòa'}
                                     </span>
                                 )}
                                 {session?.status === 'betting' && !player.isHost && (
