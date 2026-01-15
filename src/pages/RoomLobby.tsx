@@ -228,7 +228,8 @@ const RoomLobby = () => {
                 .from("room_players")
                 .insert({
                     room_id: roomData.id,
-                    user_id: user.id
+                    user_id: user.id,
+                    is_ready: false
                 });
 
             if (playerError) throw playerError;
@@ -316,7 +317,8 @@ const RoomLobby = () => {
                     .from("room_players")
                     .insert({
                         room_id: roomData.id,
-                        user_id: user.id
+                        user_id: user.id,
+                        is_ready: false
                     });
 
                 if (joinError) throw joinError;
