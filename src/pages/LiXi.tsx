@@ -24,10 +24,10 @@ const LiXi = () => {
                     className="text-center mb-12"
                 >
                     <div className="text-8xl mb-4">🧧</div>
-                    <h1 className="text-4xl md:text-5xl font-black text-yellow-400 mb-2 drop-shadow-lg">
+                    <h1 className="text-4xl md:text-6xl font-calligraphy text-yellow-400 mb-2 drop-shadow-lg">
                         Lì Xì May Mắn
                     </h1>
-                    <p className="text-white/70 text-lg">
+                    <p className="text-white/70 text-lg font-soft">
                         Chọn cách nhận lộc của bạn
                     </p>
                 </motion.div>
@@ -47,7 +47,7 @@ const LiXi = () => {
                                     <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full mx-auto mb-4">
                                         <Sparkles className="w-10 h-10 text-white" />
                                     </div>
-                                    <h2 className="text-2xl font-bold text-white mb-2 text-center">
+                                    <h2 className="text-2xl font-calligraphy text-white mb-2 text-center">
                                         Quay Số May Mắn
                                     </h2>
                                     <p className="text-white/80 text-center text-sm">
@@ -71,7 +71,7 @@ const LiXi = () => {
                                     <div className="flex items-center justify-center w-20 h-20 bg-white/20 rounded-full mx-auto mb-4">
                                         <Grid3X3 className="w-10 h-10 text-white" />
                                     </div>
-                                    <h2 className="text-2xl font-bold text-white mb-2 text-center">
+                                    <h2 className="text-2xl font-calligraphy text-white mb-2 text-center">
                                         Lật Lì Xì
                                     </h2>
                                     <p className="text-white/80 text-center text-sm">

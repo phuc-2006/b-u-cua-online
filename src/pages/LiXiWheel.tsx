@@ -112,7 +112,7 @@ const LiXiWheel = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-8"
                 >
-                    <h1 className="text-3xl md:text-4xl font-black text-yellow-400 mb-2 drop-shadow-lg">
+                    <h1 className="text-3xl md:text-5xl font-calligraphy text-yellow-400 mb-2 drop-shadow-lg">
                         🎰 Quay Số May Mắn
                     </h1>
                     <p className="text-white/70">
@@ -138,10 +138,10 @@ const LiXiWheel = () => {
                                             exit={{ y: 20, opacity: 0 }}
                                             transition={{ duration: 0.1 }}
                                             className={`text-5xl md:text-6xl font-black ${showResult
-                                                    ? finalAmount && finalAmount >= 50000
-                                                        ? 'text-yellow-400'
-                                                        : 'text-green-400'
-                                                    : 'text-white'
+                                                ? finalAmount && finalAmount >= 50000
+                                                    ? 'text-yellow-400'
+                                                    : 'text-green-400'
+                                                : 'text-white'
                                                 }`}
                                         >
                                             {formatMoney(displayAmount)}
@@ -180,8 +180,8 @@ const LiXiWheel = () => {
                                 🎉 Chúc mừng bạn nhận được
                             </div>
                             <div className={`text-4xl font-black ${finalAmount >= 100000 ? 'text-yellow-400' :
-                                    finalAmount >= 50000 ? 'text-orange-400' :
-                                        'text-green-400'
+                                finalAmount >= 50000 ? 'text-orange-400' :
+                                    'text-green-400'
                                 }`}>
                                 {formatMoney(finalAmount)}
                             </div>

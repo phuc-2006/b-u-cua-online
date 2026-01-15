@@ -26,12 +26,12 @@ const GAMES: GameItem[] = [
     route: "/baucua"
   },
   {
-    id: "ochemchem",
-    name: "Ô Ăn Quan",
-    emoji: "🕳️",
-    description: "Trò chơi dân gian tính toán chiến thuật",
-    available: false,
-    route: "/o-an-quan"
+    id: "lixi",
+    name: "Lì Xì May Mắn",
+    emoji: "🧧",
+    description: "Mở lì xì nhận lộc đầu năm",
+    available: true,
+    route: "/lixi"
   },
   {
     id: "cotu",
