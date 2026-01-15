@@ -263,6 +263,15 @@ const OnlineGame = () => {
                 };
             });
             setPlayers(formattedPlayers);
+
+            // Sync local isReady state with database for current user
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (currentUser?.id) {
+                const myPlayerData = playersData.find((p: any) => p.user_id === currentUser.id);
+                if (myPlayerData) {
+                    setIsReady(myPlayerData.is_ready || false);
+                }
+            }
         }
     };
 
